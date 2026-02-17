@@ -92,6 +92,7 @@ class KiraCommentEvent:
 class KiraExceptionEvent:
     name: str
     message: str
+    traceback: str = None
     source: str = None
 
     def __post_init__(self):
