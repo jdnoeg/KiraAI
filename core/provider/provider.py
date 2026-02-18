@@ -109,18 +109,29 @@ class ImageModelClient(BaseModelClient):
         pass
 
 
+# class EmbeddingModelClient(BaseModelClient):
+#     type = ModelType.EMBEDDING
+
+#     def __init__(self, model: ModelInfo):
+#         super().__init__(model)
+
+#     async def generate(self, text: str) -> list[float]:
+#         """Generate embedding vector of the given text"""
+#         pass
+
+#     async def generate_batch(self, texts: List[str]) -> List[List[float]]:
+#         """Generate embedding vector batch of the given texts"""
+#         pass
+
+
 class EmbeddingModelClient(BaseModelClient):
     type = ModelType.EMBEDDING
 
     def __init__(self, model: ModelInfo):
         super().__init__(model)
 
-    async def generate(self, text: str) -> list[float]:
-        """Generate embedding vector of the given text"""
-        pass
-
-    async def generate_batch(self, texts: List[str]) -> List[List[float]]:
-        """Generate embedding vector batch of the given texts"""
+    @abstractmethod
+    async def embed(self, texts: list[str]) -> list[list[float]]:
         pass
 
 
