@@ -111,6 +111,15 @@ class LLMClient:
                 logger.info(f"Time consumed: {resp.time_consumed}s, Input tokens: {resp.input_tokens}, output tokens: {resp.output_tokens}")
             return resp
 
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """生成文本嵌入向量"""
+        try:
+            embedding_model = self.provider_mgr.get_default_embedding()
+            return await embedding_model.embed(texts)
+        except Exception as e:
+            logger.error(f"Embedding error: {e}")
+            return []
+
     async def text_to_speech(self, text: str):
         tts_model = self.provider_mgr.get_default_tts()
         provider_name = tts_model.model.provider_name
@@ -126,7 +135,7 @@ class LLMClient:
         provider_name = stt_model.model.provider_name
         model_id = stt_model.model.model_id
         logger.info(f"Recognizing text using {model_id} ({provider_name})")
-        text = await stt_model.speech_to_text(stt_model, bs64)
+        text = await stt_model.speech_to_text(bs64)
         logger.info(f"Recognized text: {text}")
         return text
 

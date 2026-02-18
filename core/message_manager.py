@@ -138,6 +138,7 @@ class MessageProcessor:
 
         msg.session.session_description = self.memory_manager.get_session_info(sid).session_description
 
+        # EventType.IMMessage
         im_handlers = event_handler_reg.get_handlers(event_type=EventType.IMMessage)
         for handler in im_handlers:
             await handler.exec_handler(msg)
@@ -158,8 +159,8 @@ class MessageProcessor:
         if len(self.message_buffer[sid]) == msg_amount:
             # print("no new message coming, processing")
             async with buffer_lock:
-                message_processing: list[KiraMessageEvent] = self.message_buffer[sid][:msg_amount]
-                self.message_buffer[sid] = self.message_buffer[sid][msg_amount:]
+                pending_messages: list[KiraMessageEvent] = self.message_buffer[sid][:msg_amount]
+                del self.message_buffer[sid][:msg_amount]
             logger.info(f"deleted {msg_amount} message(s) from buffer")
         else:
             # print("new message coming")
@@ -167,12 +168,12 @@ class MessageProcessor:
 
         # Start processing
         formatted_messages_str = ""
-        for message in message_processing:
-            message_list = message.content
+        for message in pending_messages:
+            message_list = message.chain
             message.message_str = await self.message_format_to_text(message_list)
             formatted_message = self.prompt_manager.format_user_message(message)
             formatted_messages_str += f"{formatted_message}\n"
-        logger.info(f"processing message(s) from {msg.adapter_name}:\n{formatted_messages_str}")
+        logger.info(f"processing message(s) from {msg.adapter.name}:\n{formatted_messages_str}")
 
         # Get existing session
         session_list = self.get_session_list_prompt()
@@ -183,8 +184,8 @@ class MessageProcessor:
 
         # Build chat environment
         chat_env = {
-            "platform": msg.platform,
-            "adapter": msg.adapter_name,
+            "platform": msg.adapter.platform,
+            "adapter": msg.adapter.name,
             "chat_type": 'GroupMessage' if msg.is_group_message() else 'DirectMessage',
             "self_id": msg.self_id,
             "session_title": session_title,
@@ -197,11 +198,52 @@ class MessageProcessor:
         # Get core memory
         core_memory = self.memory_manager.get_core_memory()
 
+        # 构建用户标识（跨 recall / profile 复用）
+        user_key = f"{msg.adapter.name}:{msg.sender.user_id}"
+
+        # Recall long-term memories (RAG)
+        recalled_memories_str = ""
+        try:
+            recalled = await self.memory_manager.recall(formatted_messages_str, user_id=user_key, k=5)
+
+            # 群聊场景：额外搜索群级记忆（海马体在群聊中提取的事实存储在群 ID 下）
+            if msg.is_group_message():
+                group_key = f"{msg.adapter.name}:group:{msg.group.group_id}"
+                group_recalled = await self.memory_manager.recall(
+                    formatted_messages_str, user_id=group_key, k=3
+                )
+                # 去重后合并
+                existing_ids = {m.id for m in recalled}
+                for gm in group_recalled:
+                    if gm.id not in existing_ids:
+                        recalled.append(gm)
+
+            recalled_memories_str = self.memory_manager.format_recalled_memories(recalled)
+        except Exception:
+            logger.error("Long-term memory recall failed")
+
+        # Get user profile
+        user_profile_str = ""
+        try:
+            user_profile_str = self.memory_manager.get_user_profile_prompt(user_key)
+            # Update interaction stats
+            await self.memory_manager.update_user_interaction(
+                user_key,
+                platform=msg.adapter.platform,
+                nickname=msg.sender.nickname
+            )
+        except Exception:
+            logger.error("User profile retrieval skipped")
+
         # Get emoji_dict
-        emoji_dict = getattr(get_adapter_by_name(msg.adapter_name), "emoji_dict", {})
+        emoji_dict = getattr(get_adapter_by_name(msg.adapter.name), "emoji_dict", {})
 
         # Generate agent prompt
-        agent_prompt = self.prompt_manager.get_agent_prompt(chat_env, core_memory, msg.message_types, emoji_dict)
+        agent_prompt = self.prompt_manager.get_agent_prompt(
+            chat_env, core_memory, msg.message_types, emoji_dict,
+            recalled_memories=recalled_memories_str,
+            user_profile=user_profile_str
+        )
         messages = [{"role": "system", "content": agent_prompt}]
 
         session_memory.append({"role": "user", "content": formatted_messages_str})
@@ -224,7 +266,7 @@ class MessageProcessor:
             max_tool_loop = 2
 
         max_agent_steps = max_tool_loop+1
-
+        
         for _ in range(max_agent_steps):
             llm_resp = await self.llm_api.agent_run(messages)
             if llm_resp:
