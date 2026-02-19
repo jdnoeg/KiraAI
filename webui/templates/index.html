@@ -403,16 +403,7 @@
                             </div>
                         </div>
                     </div>
-                    <div id="plugin-mcp-placeholder" class="hidden">
-                        <div class="flex justify-center items-center py-12">
-                            <div class="text-center">
-                                <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"></path>
-                                </svg>
-                                <p class="text-gray-500" data-i18n="plugin.mcp_coming_soon">MCP functionality coming soon</p>
-                            </div>
-                        </div>
-                    </div>
+                    <div id="plugin-mcp" class="space-y-4 hidden"></div>
                 </div>
                 
                 <!-- Sticker Page -->
@@ -831,6 +822,41 @@
                     <button onclick="closeSessionModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-i18n="sessions.modal_cancel">Cancel</button>
                     <button onclick="saveSession()" class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors" data-i18n="sessions.modal_save">Save</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP Config Modal -->
+    <div id="mcp-config-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl mx-4 flex flex-col" style="max-height: 95vh;">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100" data-i18n="plugin.mcp_modal_title">Edit MCP Config</h3>
+                    <p id="mcp-modal-subtitle" class="text-sm text-gray-500 dark:text-gray-400 truncate mt-1"></p>
+                </div>
+                <button onclick="closeMcpConfigModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4 flex-1 overflow-y-auto">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="plugin.mcp_name_label">Server Name</label>
+                    <input type="text" id="mcp-server-name-input" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="plugin.mcp_description_label">Description</label>
+                    <textarea id="mcp-server-description-input" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"></textarea>
+                </div>
+                <div class="mb-4 flex flex-col" style="flex: 1; min-height: 0;">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="plugin.mcp_config_label">MCP Config (JSON)</label>
+                    <div id="mcp-editor-container" class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden" style="flex: 1; min-height: 350px;"></div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end items-center space-x-3">
+                <button onclick="closeMcpConfigModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" data-i18n="plugin.mcp_modal_cancel">Cancel</button>
+                <button onclick="saveMcpConfig()" class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors" data-i18n="plugin.mcp_modal_save">Save</button>
             </div>
         </div>
     </div>

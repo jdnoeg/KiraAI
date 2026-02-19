@@ -76,8 +76,25 @@ class LogQueueHandler(logging.Handler):
 log_cache_manager = LogCacheManager()
 
 
+class GetLoggerFilter(logging.Filter):
+    """过滤器：只允许通过get_logger创建的logger的日志通过"""
+
+    def __init__(self, created_loggers_set):
+        super().__init__()
+        self.created_loggers_set = created_loggers_set
+
+    def filter(self, record):
+        # 如果logger名称在created_loggers_set中，则允许通过
+        return record.name in self.created_loggers_set
+
+
+_created_by_get_logger = set()
+
+
 def get_logger(name: str, color: str):
     logger = logging.getLogger(name)
+
+    _created_by_get_logger.add(name)
 
     if logger.handlers:
         return logger
@@ -117,6 +134,7 @@ def get_logger(name: str, color: str):
     qh = LogQueueHandler(log_cache_manager)
     qh.setLevel(logging.DEBUG)
     qh.setFormatter(logging.Formatter(datefmt='%Y-%m-%d %H:%M:%S'))
+    qh.addFilter(GetLoggerFilter(_created_by_get_logger))
 
     logger.addHandler(ch)
     logger.addHandler(fh)
