@@ -19,6 +19,7 @@ const AppState = {
         adapters: [],
         personas: [],
         stickers: [],
+        mcpServers: [],
         settings: {},
         providerModels: {},
         configuration: null,
@@ -999,6 +1000,17 @@ async function loadPluginData() {
     }
 }
 
+async function loadMcpServers() {
+    try {
+        const response = await apiCall('/api/mcp-servers');
+        const data = await response.json();
+        AppState.data.mcpServers = Array.isArray(data) ? data : [];
+        renderMcpServers();
+    } catch (error) {
+        console.error('Error loading MCP servers:', error);
+    }
+}
+
 function renderPluginList() {
     const container = document.getElementById('plugin-list');
     if (!container) {
@@ -1109,6 +1121,128 @@ function renderPluginList() {
     }
 }
 
+function renderMcpServers() {
+    const container = document.getElementById('plugin-mcp');
+    if (!container) {
+        return;
+    }
+    const servers = AppState.data.mcpServers || [];
+    if (!servers.length) {
+        const emptyText = window.i18n ? window.i18n.t('plugin.no_mcp_servers') : 'No MCP servers configured';
+        container.innerHTML = `
+            <div class="flex items-center justify-start mb-4">
+                <button
+                    type="button"
+                    id="mcp-add-button"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                    <span class="mr-1">+</span>
+                    <span data-i18n="plugin.mcp_add">Add MCP server</span>
+                </button>
+            </div>
+            <div class="flex justify-center items-center py-12">
+                <div class="text-center">
+                    <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 6a9 9 0 11-9 9 9 9 0 019-9z"></path>
+                    </svg>
+                    <p class="text-gray-500">${escapeHtml(emptyText)}</p>
+                </div>
+            </div>
+        `;
+        if (window.i18n) {
+            updateTranslations();
+        }
+        return;
+    }
+    const cards = servers.map((server) => {
+        const id = server.id || '';
+        const type = server.type || '';
+        const name = server.name || id || '';
+        const description = server.description || '';
+        const enabled = server.enabled === true;
+        const toolsCount = typeof server.tools_count === 'number' ? server.tools_count : 0;
+        const toggleOnClasses = 'bg-blue-600 border-blue-600 dark:bg-blue-500 dark:border-blue-500';
+        const toggleOffClasses = 'bg-gray-200 border-gray-300 dark:bg-gray-700 dark:border-gray-600';
+        const knobOnClasses = 'translate-x-4';
+        const knobOffClasses = 'translate-x-0';
+        const toggleClasses = enabled ? toggleOnClasses : toggleOffClasses;
+        const knobClasses = enabled ? knobOnClasses : knobOffClasses;
+        return `
+            <div class="bg-white dark:bg-gray-900 rounded-lg shadow p-4 flex flex-col">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <div class="text-base font-semibold text-gray-900 dark:text-gray-100">${escapeHtml(String(name))}</div>
+                        ${type ? `
+                            <div class="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                ${escapeHtml(String(type))}
+                            </div>
+                        ` : ''}
+                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            ${escapeHtml(String(id))}
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <button
+                            type="button"
+                            class="ml-2 relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-200 ease-in-out focus:outline-none ${toggleClasses}"
+                            aria-pressed="${enabled ? 'true' : 'false'}"
+                            data-mcp-id="${escapeHtml(String(id))}"
+                            aria-label="${window.i18n ? window.i18n.t('plugin.mcp_toggle_label') : 'Enable MCP server'}"
+                        >
+                            <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${knobClasses}"></span>
+                        </button>
+                    </div>
+                </div>
+                ${description ? `
+                    <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-3 mb-3" title="${escapeHtml(String(description))}">
+                        ${escapeHtml(String(description))}
+                    </p>
+                ` : ''}
+                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    ${window.i18n ? window.i18n.t('plugin.mcp_tools_label') : 'Tools'}: ${toolsCount}
+                </div>
+                <div class="mt-4 flex items-center justify-end space-x-3 mt-auto">
+                    <button
+                        type="button"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                        data-mcp-edit-id="${escapeHtml(String(id))}"
+                        data-i18n="plugin.mcp_edit"
+                    >
+                        Edit
+                    </button>
+                    <button
+                        type="button"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/30"
+                        data-mcp-delete-id="${escapeHtml(String(id))}"
+                        data-i18n="plugin.mcp_delete"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    container.innerHTML = `
+        <div class="flex items-center justify-start mb-4">
+            <button
+                type="button"
+                id="mcp-add-button"
+                class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+                <span class="mr-1">+</span>
+                <span data-i18n="plugin.mcp_add">Add MCP server</span>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+            ${cards}
+        </div>
+    `;
+    attachMcpHandlers();
+    if (window.i18n) {
+        updateTranslations();
+    }
+}
+
 async function togglePluginEnabled(button) {
     const pluginId = button.getAttribute('data-plugin-id') || '';
     if (!pluginId) {
@@ -1174,6 +1308,125 @@ async function togglePluginEnabled(button) {
             button.setAttribute('aria-disabled', origAriaDisabled);
         }
     }
+}
+
+async function toggleMcpEnabled(button) {
+    const serverId = button.getAttribute('data-mcp-id') || '';
+    if (!serverId) {
+        return;
+    }
+    const isOn = button.getAttribute('aria-pressed') === 'true';
+    const nextState = !isOn;
+
+    const origAriaPressed = button.getAttribute('aria-pressed');
+    const origButtonClass = button.className;
+    const knob = button.querySelector('span');
+    const origKnobClass = knob ? knob.className : null;
+    const origDisabled = button.disabled;
+    const origAriaDisabled = button.getAttribute('aria-disabled');
+
+    button.setAttribute('aria-pressed', nextState ? 'true' : 'false');
+    const baseClasses = 'ml-2 relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-200 ease-in-out focus:outline-none';
+    const onClasses = 'bg-blue-600 border-blue-600 dark:bg-blue-500 dark:border-blue-500';
+    const offClasses = 'bg-gray-200 border-gray-300 dark:bg-gray-700 dark:border-gray-600';
+    button.className = `${baseClasses} ${nextState ? onClasses : offClasses}`;
+    if (knob) {
+        knob.className = `pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${nextState ? 'translate-x-4' : 'translate-x-0'}`;
+    }
+
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
+
+    try {
+        const response = await apiCall(`/api/mcp-servers/${encodeURIComponent(serverId)}/enabled`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: nextState })
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to update MCP server state: ${response.status}`);
+        }
+        if (AppState.data.mcpServers) {
+            const server = AppState.data.mcpServers.find(s => s.id === serverId || s.name === serverId);
+            if (server) {
+                server.enabled = nextState;
+            }
+        }
+        await loadMcpServers();
+    } catch (error) {
+        console.error('Error updating MCP server state:', error);
+        button.setAttribute('aria-pressed', origAriaPressed);
+        button.className = origButtonClass;
+        if (knob && origKnobClass !== null) {
+            knob.className = origKnobClass;
+        }
+        if (window.i18n) {
+            showNotification(window.i18n.t('plugin.mcp_toggle_error'), 'error');
+        } else {
+            showNotification('Failed to update MCP server state', 'error');
+        }
+    } finally {
+        button.disabled = origDisabled;
+        if (origAriaDisabled !== null) {
+            button.setAttribute('aria-disabled', origAriaDisabled);
+        } else {
+            button.removeAttribute('aria-disabled');
+        }
+    }
+}
+
+function attachMcpHandlers() {
+    const container = document.getElementById('plugin-mcp');
+    if (!container) {
+        return;
+    }
+    const addButton = container.querySelector('#mcp-add-button');
+    if (addButton) {
+        addButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            openMcpCreateModal();
+        });
+    }
+    container.querySelectorAll('button[data-mcp-id]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleMcpEnabled(btn);
+        });
+    });
+    container.querySelectorAll('button[data-mcp-edit-id]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const serverId = btn.getAttribute('data-mcp-edit-id') || '';
+            if (serverId) {
+                openMcpConfigEditor(serverId);
+            }
+        });
+    });
+    container.querySelectorAll('button[data-mcp-delete-id]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const serverId = btn.getAttribute('data-mcp-delete-id') || '';
+            if (!serverId) {
+                return;
+            }
+            try {
+                const response = await apiCall(`/api/mcp-servers/${encodeURIComponent(serverId)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to delete MCP server: ${response.status}`);
+                }
+                AppState.data.mcpServers = (AppState.data.mcpServers || []).filter(s => s.id !== serverId);
+                renderMcpServers();
+                showNotification(window.i18n ? window.i18n.t('plugin.mcp_delete_success') : 'MCP server deleted', 'success');
+            } catch (error) {
+                console.error('Error deleting MCP server:', error);
+                showNotification(window.i18n ? window.i18n.t('plugin.mcp_delete_error') : 'Failed to delete MCP server', 'error');
+            }
+        });
+    });
 }
 
 function attachPluginToggleHandlers() {
@@ -2724,6 +2977,214 @@ async function initializeSessionEditor(messages) {
     });
 }
 
+const mcpEditorState = {
+    instance: null,
+    serverId: null,
+    mode: 'edit'
+};
+
+async function openMcpConfigEditor(serverId) {
+    try {
+        const response = await apiCall(`/api/mcp-servers/${encodeURIComponent(serverId)}/config`);
+        if (!response.ok) {
+            throw new Error(`Failed to load MCP config: ${response.status}`);
+        }
+        const data = await response.json();
+        const modal = document.getElementById('mcp-config-modal');
+        const subtitle = document.getElementById('mcp-modal-subtitle');
+        const nameInput = document.getElementById('mcp-server-name-input');
+        const descInput = document.getElementById('mcp-server-description-input');
+        if (!modal || !nameInput) {
+            return;
+        }
+        mcpEditorState.serverId = serverId;
+        mcpEditorState.mode = 'edit';
+        if (subtitle) {
+            subtitle.textContent = '';
+        }
+        nameInput.value = data.name || serverId;
+        if (descInput) {
+            descInput.value = data.description || '';
+        }
+
+        if (typeof monaco === 'undefined') {
+            await new Promise(resolve => {
+                const checkMonaco = setInterval(() => {
+                    if (typeof monaco !== 'undefined') {
+                        clearInterval(checkMonaco);
+                        resolve();
+                    }
+                }, 100);
+            });
+        }
+
+        const container = document.getElementById('mcp-editor-container');
+        if (!container) {
+            return;
+        }
+        if (mcpEditorState.instance) {
+            mcpEditorState.instance.dispose();
+        }
+        const editorValue = data.config ? JSON.stringify(data.config, null, 4) : '';
+        mcpEditorState.instance = monaco.editor.create(container, {
+            value: editorValue,
+            language: 'json',
+            theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+            automaticLayout: true,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            wordWrap: 'on',
+            lineNumbers: 'on',
+            folding: true,
+            bracketPairColorization: { enabled: true }
+        });
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    } catch (error) {
+        console.error('Error loading MCP config:', error);
+        showNotification('Failed to load MCP config', 'error');
+    }
+}
+
+async function openMcpCreateModal() {
+    const modal = document.getElementById('mcp-config-modal');
+    const subtitle = document.getElementById('mcp-modal-subtitle');
+    const nameInput = document.getElementById('mcp-server-name-input');
+    const descInput = document.getElementById('mcp-server-description-input');
+    if (!modal || !nameInput) {
+        return;
+    }
+    mcpEditorState.serverId = null;
+    mcpEditorState.mode = 'create';
+    if (subtitle) {
+        subtitle.textContent = '';
+    }
+    nameInput.value = '';
+    if (descInput) {
+        descInput.value = '';
+    }
+
+    if (typeof monaco === 'undefined') {
+        await new Promise(resolve => {
+            const checkMonaco = setInterval(() => {
+                if (typeof monaco !== 'undefined') {
+                    clearInterval(checkMonaco);
+                    resolve();
+                }
+            }, 100);
+        });
+    }
+
+    const container = document.getElementById('mcp-editor-container');
+    if (!container) {
+        return;
+    }
+    if (mcpEditorState.instance) {
+        mcpEditorState.instance.dispose();
+    }
+
+    const template = JSON.stringify({
+        type: "streamable_http",
+        url: "",
+        headers: {}
+    }, null, 4);
+
+    mcpEditorState.instance = monaco.editor.create(container, {
+        value: template,
+        language: 'json',
+        theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        fontSize: 13,
+        wordWrap: 'on',
+        lineNumbers: 'on',
+        folding: true,
+        bracketPairColorization: { enabled: true }
+    });
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeMcpConfigModal() {
+    const modal = document.getElementById('mcp-config-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    const container = document.getElementById('mcp-editor-container');
+    if (container && mcpEditorState.instance) {
+        mcpEditorState.instance.dispose();
+        mcpEditorState.instance = null;
+    }
+    mcpEditorState.serverId = null;
+    mcpEditorState.mode = 'edit';
+}
+
+async function saveMcpConfig() {
+    const nameInput = document.getElementById('mcp-server-name-input');
+    const descInput = document.getElementById('mcp-server-description-input');
+    const nameValue = nameInput ? (nameInput.value || '').trim() : '';
+    if (!nameValue) {
+        showNotification('Server name is required', 'error');
+        return;
+    }
+    const descriptionValue = descInput ? (descInput.value || '') : '';
+
+    if (!mcpEditorState.instance) {
+        return;
+    }
+    const content = mcpEditorState.instance.getValue();
+    try {
+        JSON.parse(content);
+    } catch (e) {
+        showNotification('Invalid JSON in MCP config', 'error');
+        return;
+    }
+    const isCreate = mcpEditorState.mode === 'create' || !mcpEditorState.serverId;
+    try {
+        let response;
+        if (isCreate) {
+            response = await apiCall('/api/mcp-servers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: nameValue,
+                    description: descriptionValue,
+                    config: content
+                })
+            });
+        } else {
+            const serverId = mcpEditorState.serverId;
+            response = await apiCall(`/api/mcp-servers/${encodeURIComponent(serverId)}/config`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: nameValue,
+                    description: descriptionValue,
+                    config: content
+                })
+            });
+        }
+        if (!response.ok) {
+            throw new Error(`Failed to save MCP config: ${response.status}`);
+        }
+        closeMcpConfigModal();
+        await loadMcpServers();
+        showNotification(isCreate ? 'MCP server created' : 'MCP config saved', 'success');
+    } catch (error) {
+        console.error('Error saving MCP config:', error);
+        showNotification('Failed to save MCP config', 'error');
+    }
+}
+
 /**
  * Close session modal
  */
@@ -3193,7 +3654,8 @@ function setupPluginTabs() {
     const tabPlugins = document.getElementById('plugin-tab-plugins');
     const tabMcp = document.getElementById('plugin-tab-mcp');
     const pluginList = document.getElementById('plugin-list');
-    if (!tabPlugins || !tabMcp || !pluginList) {
+    const mcpContainer = document.getElementById('plugin-mcp');
+    if (!tabPlugins || !tabMcp || !pluginList || !mcpContainer) {
         return;
     }
     const activateTab = (tab) => {
@@ -3210,16 +3672,12 @@ function setupPluginTabs() {
             tabPlugins.classList.remove('border-blue-600', 'dark:border-blue-500', 'text-blue-600', 'dark:text-blue-500');
             tabPlugins.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         }
-        const pluginContent = document.getElementById('plugin-list');
-        const mcpPlaceholder = document.getElementById('plugin-mcp-placeholder');
-        if (pluginContent && mcpPlaceholder) {
-            if (isPlugins) {
-                pluginContent.classList.remove('hidden');
-                mcpPlaceholder.classList.add('hidden');
-            } else {
-                pluginContent.classList.add('hidden');
-                mcpPlaceholder.classList.remove('hidden');
-            }
+        if (isPlugins) {
+            pluginList.classList.remove('hidden');
+            mcpContainer.classList.add('hidden');
+        } else {
+            pluginList.classList.add('hidden');
+            mcpContainer.classList.remove('hidden');
         }
     };
     tabPlugins.addEventListener('click', (e) => {
@@ -3230,9 +3688,15 @@ function setupPluginTabs() {
     tabMcp.addEventListener('click', (e) => {
         e.preventDefault();
         activateTab('mcp');
+        loadMcpServers();
     });
-    activateTab(AppState.pluginTab || 'plugins');
-    loadPluginData();
+    const initialTab = AppState.pluginTab || 'plugins';
+    activateTab(initialTab);
+    if (initialTab === 'plugins') {
+        loadPluginData();
+    } else {
+        loadMcpServers();
+    }
     AppState.pluginTabsInitialized = true;
 }
 

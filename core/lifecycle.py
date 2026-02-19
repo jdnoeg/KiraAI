@@ -16,6 +16,7 @@ from .event_bus import EventBus
 from .persona import PersonaManager
 from .provider import ProviderManager
 from .plugin import PluginContext, PluginManager
+from core.agent.mcp_mgr import MCPManager
 
 
 logger = get_logger("lifecycle", "blue")
@@ -51,6 +52,7 @@ class KiraLifecycle:
 
         self.plugin_manager: Optional[PluginManager] = None
 
+        self.mcp_manager: Optional[MCPManager] = None
         self.tasks: list[asyncio.Task] = []
 
     async def schedule_tasks(self):
@@ -128,6 +130,13 @@ class KiraLifecycle:
                                                   self.prompt_manager)
 
         self.event_bus = EventBus(self.stats, event_queue, self.message_processor)
+
+        # ====== init MCP manager ======
+        try:
+            self.mcp_manager = MCPManager(self.llm_api)
+            await self.mcp_manager.init_mcp()
+        except Exception as e:
+            logger.error(f"Failed to initialize MCPManager: {e}")
 
         # ====== init plugin system ======
         self.plugin_context = PluginContext(

@@ -137,6 +137,29 @@ class PluginConfigUpdateRequest(BaseModel):
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
+class McpServerItem(BaseModel):
+    id: str
+    type: str = ""
+    name: str = ""
+    description: str = ""
+    enabled: bool = False
+    url: str = ""
+    tools_count: int = 0
+
+
+class McpServerConfigUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    # Accept either a raw JSON string or an object so the frontend can
+    # send the Monaco editor content directly as a string.
+    config: Any = Field(default_factory=dict)
+
+
+class McpServerCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    config: Any
+
+
 def _generate_strong_password(length: int = 16) -> str:
     """Generate a strong password, including upper/lower cased alphabets、digits and special characters"""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*()_+-=[]{}|;:,.<>?"
@@ -1271,6 +1294,206 @@ class KiraWebUI:
             except Exception as e:
                 logger.error(f"Failed to list plugins: {e}")
                 raise HTTPException(status_code=500, detail="Failed to list plugins")
+
+        @self.app.get(
+            "/api/mcp-servers",
+            response_model=List[McpServerItem],
+            tags=["plugins"],
+            dependencies=[Depends(require_auth)],
+        )
+        async def list_mcp_servers():
+            if not self.lifecycle or not getattr(self.lifecycle, "mcp_manager", None):
+                return []
+            try:
+                manager = self.lifecycle.mcp_manager
+                items: List[McpServerItem] = []
+                for server in manager.servers:
+                    items.append(
+                        McpServerItem(
+                            id=str(server.name),
+                            type=str(server.type),
+                            name=str(server.name),
+                            description=str(server.description or ""),
+                            enabled=bool(server.enabled),
+                            url=str(server.url or ""),
+                            tools_count=len(server.tools),
+                        )
+                    )
+                return items
+            except Exception as e:
+                logger.error(f"Failed to list MCP servers from MCPManager: {e}")
+                raise HTTPException(status_code=500, detail="Failed to list MCP servers")
+
+        @self.app.post(
+            "/api/mcp-servers",
+            response_model=McpServerItem,
+            tags=["plugins"],
+            dependencies=[Depends(require_auth)],
+        )
+        async def create_mcp_server(payload: McpServerCreateRequest):
+            if not self.lifecycle or not getattr(self.lifecycle, "mcp_manager", None):
+                raise HTTPException(status_code=503, detail="MCP manager not available")
+            try:
+                raw_config = payload.config
+                if isinstance(raw_config, str):
+                    try:
+                        config_json = json.loads(raw_config)
+                    except json.JSONDecodeError:
+                        raise HTTPException(status_code=400, detail="Invalid MCP config JSON")
+                elif isinstance(raw_config, dict):
+                    config_json = raw_config
+                else:
+                    raise HTTPException(status_code=400, detail="Invalid MCP config JSON")
+
+                manager = self.lifecycle.mcp_manager
+                server = manager.add_or_update_server_from_config(
+                    name=payload.name,
+                    description=payload.description or "",
+                    config_json=config_json,
+                )
+                try:
+                    await manager.list_tools(server)
+                except Exception:
+                    pass
+                return McpServerItem(
+                    id=str(server.name),
+                    type=str(server.type),
+                    name=str(server.name),
+                    description=str(server.description or ""),
+                    enabled=bool(server.enabled),
+                    url=str(server.url or ""),
+                    tools_count=len(server.tools),
+                )
+            except HTTPException:
+                raise
+            except ValueError as e:
+                logger.error(f"Failed to create MCP server {payload.name}: {e}")
+                raise HTTPException(status_code=400, detail=str(e))
+            except Exception as e:
+                logger.error(f"Failed to create MCP server {payload.name}: {e}")
+                raise HTTPException(status_code=500, detail="Failed to create MCP server")
+
+        @self.app.post(
+            "/api/mcp-servers/{server_name}/enabled",
+            tags=["plugins"],
+            dependencies=[Depends(require_auth)],
+        )
+        async def set_mcp_server_enabled(
+            server_name: str,
+            payload: Dict,
+        ):
+            if not self.lifecycle or not getattr(self.lifecycle, "mcp_manager", None):
+                raise HTTPException(status_code=503, detail="MCP manager not available")
+            try:
+                enabled = bool(payload.get("enabled"))
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid payload")
+            try:
+                manager = self.lifecycle.mcp_manager
+                if enabled:
+                    await manager.enable_server(server_name)
+                else:
+                    manager.disable_server(server_name)
+                return {"server_name": server_name, "enabled": enabled}
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to set MCP server enabled state for {server_name}: {e}")
+                raise HTTPException(status_code=500, detail="Failed to update MCP server state")
+
+        @self.app.get(
+            "/api/mcp-servers/{server_name}/config",
+            tags=["plugins"],
+            dependencies=[Depends(require_auth)],
+        )
+        async def get_mcp_server_config(server_name: str):
+            if not self.lifecycle or not getattr(self.lifecycle, "mcp_manager", None):
+                raise HTTPException(status_code=503, detail="MCP manager not available")
+            try:
+                manager = self.lifecycle.mcp_manager
+                editor_cfg = manager.get_server_config_for_editor(server_name)
+                description = ""
+                for server in manager.servers:
+                    if server.name == server_name:
+                        description = server.description or ""
+                        break
+                return {
+                    "name": server_name,
+                    "description": description,
+                    "config": editor_cfg,
+                }
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to load MCP config file for {server_name}: {e}")
+                raise HTTPException(status_code=500, detail="Failed to load MCP config file")
+
+        @self.app.put(
+            "/api/mcp-servers/{server_name}/config",
+            tags=["plugins"],
+            dependencies=[Depends(require_auth)],
+        )
+        async def update_mcp_server_config(
+            server_name: str,
+            payload: McpServerConfigUpdateRequest,
+        ):
+            if not self.lifecycle or not getattr(self.lifecycle, "mcp_manager", None):
+                raise HTTPException(status_code=503, detail="MCP manager not available")
+            try:
+                try:
+                    editor_config = json.loads(payload.config) if isinstance(payload.config, str) else payload.config  # type: ignore[arg-type]
+                except Exception:
+                    raise HTTPException(status_code=400, detail="Invalid MCP config JSON")
+                manager = self.lifecycle.mcp_manager
+                manager.update_server_from_editor(
+                    name=server_name,
+                    description=payload.name or "",
+                    editor_config=editor_config,
+                )
+                return {"ok": True}
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to update MCP config file for {server_name}: {e}")
+                raise HTTPException(status_code=500, detail="Failed to save MCP config file")
+
+        @self.app.delete(
+            "/api/mcp-servers/{server_name}",
+            tags=["plugins"],
+            dependencies=[Depends(require_auth)],
+        )
+        async def delete_mcp_server(server_name: str):
+            if not self.lifecycle or not getattr(self.lifecycle, "mcp_manager", None):
+                raise HTTPException(status_code=503, detail="MCP manager not available")
+            try:
+                from core.agent.mcp_mgr import MCP_CONFIG_PATH
+                if not MCP_CONFIG_PATH.exists():
+                    raise HTTPException(status_code=404, detail="MCP config not found")
+                with MCP_CONFIG_PATH.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                servers = data.get("mcpServers") or {}
+                if not isinstance(servers, dict):
+                    raise HTTPException(status_code=404, detail="MCP server not found")
+                if server_name not in servers:
+                    found_key = None
+                    for key, cfg in servers.items():
+                        if isinstance(cfg, dict) and cfg.get("name") == server_name:
+                            found_key = key
+                            break
+                    if not found_key:
+                        raise HTTPException(status_code=404, detail="MCP server not found")
+                    servers.pop(found_key, None)
+                else:
+                    servers.pop(server_name, None)
+                data["mcpServers"] = servers
+                with MCP_CONFIG_PATH.open("w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4, ensure_ascii=False)
+                return {"ok": True}
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to delete MCP server {server_name}: {e}")
+                raise HTTPException(status_code=500, detail="Failed to delete MCP server")
 
         @self.app.get(
             "/api/plugins/{plugin_id}/config",

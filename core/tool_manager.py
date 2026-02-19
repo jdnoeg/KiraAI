@@ -156,7 +156,7 @@ async def register_all_tools(llm_api) -> None:
                 func=_make_func(tool_instance)
             )
 
-    try:
-        asyncio.create_task(_register_mcp_tools(llm_api))
-    except RuntimeError:
-        pass
+    # try:
+    #     asyncio.create_task(_register_mcp_tools(llm_api))
+    # except RuntimeError:
+    #     pass
