@@ -20,7 +20,7 @@ from core.adapter.adapter_info import AdapterInfo
 
 
 class MessageType(Enum):
-    GroupMsg =  "gm"
+    GroupMsg = "gm"
     DirectMsg = "dm"
     SystemMsg = "sm"
 
@@ -39,6 +39,7 @@ class KiraMessageEvent:
     group: Group = None
     is_notice: bool = False
     is_mentioned: Optional[bool] = None
+    extra: Optional[dict] = None
     message_str: Optional[str] = field(default=None, init=False)
     message_repr: Optional[str] = field(default=None, init=False)
     _is_stopped: bool = False
@@ -68,6 +69,26 @@ class KiraMessageEvent:
 
     def stop(self):
         self._is_stopped = True
+
+
+@dataclass
+class KiraMessageBatchEvent:
+    message_types: list
+    message_id: str
+    self_id: str
+    chain: list
+    timestamp: int
+    process_strategy: Literal["default", "buffer", "discard"] = "default"
+    adapter: AdapterInfo = None
+    sender: User = None
+    session: Session = None
+    group: Group = None
+    is_notice: bool = False
+    is_mentioned: Optional[bool] = None
+    extra: Optional[dict] = None
+    message_str: Optional[str] = field(default=None, init=False)
+    message_repr: Optional[str] = field(default=None, init=False)
+    _is_stopped: bool = False
 
 
 @dataclass
