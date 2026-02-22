@@ -16,7 +16,12 @@ class Priority(Enum):
 
 
 class EventType(Enum):
-    IMMessage = auto()
+    ON_IM_MESSAGE = "on_im_message"  # 第一步：消息到达时
+    ON_IM_BATCH_MESSAGE = "on_im_batch_message"  # 第二步：消息合并后
+    ON_LLM_RAW_OUTPUT = "on_llm_raw_output"  # 第三步：LLM 原始输出
+    AFTER_XML_PARSE = "after_xml_parse"  # 第四步：XML 解析后
+    ON_TOOL_RESULT = "on_tool_result"  # 第五步：工具调用结果
+    ON_FINAL_RESULT = "on_final_result"  # 第六步：最终消息结果
     ...
 
 
