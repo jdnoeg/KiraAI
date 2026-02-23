@@ -83,7 +83,7 @@ class OnEventDeco:
         def decorator(func: Callable):
             plugin_id = get_obj_plugin_id(func)
             eh = EventHandler(
-                EventType.IMMessage,
+                EventType.ON_IM_MESSAGE,
                 priority=priority,
                 handler=func,
                 desc=func.__doc__
